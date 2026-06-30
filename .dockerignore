@@ -12,8 +12,8 @@ dist
 dist-server
 release
 
-# Pre-built aioncore binaries (downloaded inside the builder stage)
-resources/bundled-aioncore
+# Pre-built aioncore binaries — included in context (prepareAioncore.js uses local copy)
+# resources/bundled-aioncore
 
 # Version control
 .git

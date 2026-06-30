@@ -26,25 +26,31 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 # Install Bun in the builder (needed for `bun install` lockfile resolution).
-RUN npm install -g bun
+# Install wget (needed by prepareAioncore.js to download the aioncore binary).
+RUN apt-get update && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g bun
 
-# Copy dependency manifests first for layer caching.
-COPY package.json bun.lock ./
-COPY patches/ ./patches/
+# Copy full source tree. Bun workspaces (packages/*) must be present before
+# install — bun resolves workspace:* deps from local package.json files.
+# The .dockerignore excludes node_modules/, out/, .git/ etc. to keep context small.
+COPY . .
 
 # Install all dependencies (including devDeps needed for electron-vite).
 # --ignore-scripts avoids native rebuilds that fail in a headless container.
 RUN bun install --ignore-scripts
 
-# Copy full source tree (needed for the build to resolve workspace packages).
-COPY . .
-
 # Build the renderer SPA using electron-vite.
 # MUST use `node` to invoke electron-vite — Bun triggers a crypto import bug.
 RUN node node_modules/.bin/electron-vite build --config packages/desktop/electron.vite.config.ts
 
-# Download the aioncore Rust binary for linux-x64.
-RUN node scripts/prepareAioncore.js
+# The aioncore binary is pre-downloaded and included via COPY . .
+# (prepareAioncore.js would delete and re-download, which fails in
+# rootless Docker due to network namespace restrictions).
+# Verify the binary exists from the source tree copy.
+RUN test -f resources/bundled-aioncore/linux-x64/aioncore \
+    && chmod +x resources/bundled-aioncore/linux-x64/aioncore \
+    && echo "✓ aioncore binary verified"
 
 # Verify build artifacts exist before proceeding to runtime stage.
 RUN test -f out/renderer/index.html || (echo "ERROR: out/renderer/index.html not found" && exit 1)
@@ -80,20 +86,20 @@ RUN apt-get update \
 # Install Bun (runtime for webui.ts) and opencode-ai (agent CLI).
 RUN npm install -g bun opencode-ai
 
-# Copy dependency manifests and install production dependencies.
-COPY package.json bun.lock ./
-COPY patches/ ./patches/
-RUN bun install --production --ignore-scripts
+# Copy root package.json (needed for workspace resolution at runtime).
+COPY --from=builder /app/package.json /app/bun.lock ./
+COPY --from=builder /app/patches/ ./patches/
 
-# Copy application source needed at runtime:
-#   scripts/              — webui.ts launcher
-#   packages/web-host/    — static server + reverse proxy
-#   packages/web-cli/     — browser utilities
-#   packages/shared-scripts/ — runtime utilities
-COPY --from=builder /app/scripts/ ./scripts/
+# Copy workspace package directories (bun resolves workspace:* from these).
 COPY --from=builder /app/packages/web-host/ ./packages/web-host/
 COPY --from=builder /app/packages/web-cli/ ./packages/web-cli/
 COPY --from=builder /app/packages/shared-scripts/ ./packages/shared-scripts/
+
+# Copy node_modules from builder (pre-resolved, includes workspace symlinks).
+COPY --from=builder /app/node_modules/ ./node_modules/
+
+# Copy runtime scripts.
+COPY --from=builder /app/scripts/ ./scripts/
 
 # Copy build artifacts from builder stage.
 COPY --from=builder /app/out/renderer/ ./out/renderer/
