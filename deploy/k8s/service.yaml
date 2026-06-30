@@ -1,0 +1,22 @@
+---
+# Service: ClusterIP for the default AionUi instance
+# Not exposed externally — Traefik IngressRoute handles external routing.
+# For multi-user: provision-user.sh creates svc-{username} variants.
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-default
+  namespace: aionui
+  labels:
+    app: aionui
+    instance: default
+spec:
+  type: ClusterIP
+  selector:
+    app: aionui
+    instance: default
+  ports:
+    - name: http
+      port: 25808
+      targetPort: 25808
+      protocol: TCP

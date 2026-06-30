@@ -1,0 +1,18 @@
+---
+# PVC: Default instance persistent volume
+# For multi-user: provision-user.sh creates pvc-{username} variants.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-default
+  namespace: aionui
+  labels:
+    app: aionui
+    instance: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi

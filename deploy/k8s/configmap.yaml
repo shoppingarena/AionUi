@@ -1,0 +1,22 @@
+---
+# ConfigMap: Shared non-secret configuration for all AionUi instances
+# Applied via envFrom in the Deployment template.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aionui-config
+  namespace: aionui
+  labels:
+    app.kubernetes.io/name: aionui
+data:
+  # Skip renderer rebuild — already built in the container image
+  AIONUI_NO_BUILD: "1"
+  # Bind to all interfaces (behind Traefik Ingress)
+  AIONUI_HOST: "0.0.0.0"
+  # Persistent data directory (PVC mount point)
+  AIONUI_DATA_DIR: "/data"
+  AIONUI_LOG_DIR: "/data/logs"
+  # Node.js production mode
+  NODE_ENV: "production"
+  # HTTP listen port (Traefik routes here)
+  PORT: "25808"

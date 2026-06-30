@@ -1,0 +1,41 @@
+---
+# Middleware: Rate limiting for auth and application endpoints (FR-005)
+#
+# Applied via IngressRoute middleware chains:
+#   Auth endpoints: [security-headers, authentik-forward-auth, rate-limit-auth]
+#   App endpoints:  [security-headers, authentik-forward-auth, rate-limit-app]
+#
+
+---
+# Rate limit for authentication endpoints (login, password reset)
+# 5 req/min average, burst of 3 — blocks brute-force within 10s
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit-auth
+  namespace: aionui
+spec:
+  rateLimit:
+    average: 5
+    period: 1m
+    burst: 3
+    sourceCriterion:
+      ipStrategy:
+        depth: 0
+
+---
+# Rate limit for application routes (normal API usage)
+# 100 req/s average, burst of 50 — generous for SPA interaction
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit-app
+  namespace: aionui
+spec:
+  rateLimit:
+    average: 100
+    period: 1s
+    burst: 50
+    sourceCriterion:
+      ipStrategy:
+        depth: 0

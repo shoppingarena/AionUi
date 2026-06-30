@@ -1,0 +1,25 @@
+---
+# ClusterIssuer: Let's Encrypt with HTTP-01 challenge via Traefik
+#
+# PREREQUISITE: cert-manager must be installed on the cluster:
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
+#
+# CONFIGURE: Replace admin@example.com with your email before applying.
+#
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    # Let's Encrypt production API
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Admin email for expiry notifications — CONFIGURE THIS
+    email: admin@example.com
+    # Private key stored in this secret
+    privateKeySecretRef:
+      name: letsencrypt-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: traefik

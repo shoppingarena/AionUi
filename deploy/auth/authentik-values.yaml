@@ -1,0 +1,115 @@
+---
+# Authentik Helm Chart Values
+#
+# PREREQUISITES:
+#   helm repo add authentik https://charts.goauthentik.io
+#   helm repo update
+#
+# DEPLOY:
+#   helm install authentik authentik/authentik -f deploy/auth/authentik-values.yaml -n authentik --create-namespace
+#
+# CONFIGURE: Replace all CHANGEME values before deploying.
+#
+
+# ---------------------------------------------------------------------------
+# Authentik server + worker
+# ---------------------------------------------------------------------------
+authentik:
+  # Authentik secret key — generate with: openssl rand -base64 50
+  secret_key: "CHANGEME_GENERATE_WITH_OPENSSL_RAND_BASE64_50"
+
+  # Bootstrap admin credentials — CHANGE THESE
+  admin_user: "admin"
+  admin_email: "admin@example.com"
+  admin_password: "CHANGEME_ADMIN_PASSWORD"
+
+  # Default encryption key for DB fields
+  postgresql:
+    enabled: true
+
+  redis:
+    enabled: true
+
+  # Email server (for password reset, notifications)
+  email:
+    host: "smtp.example.com"
+    port: 587
+    use_tls: true
+    username: "noreply@example.com"
+    password: "CHANGEME_SMTP_PASSWORD"
+    from: "noreply@example.com"
+
+# ---------------------------------------------------------------------------
+# PostgreSQL (Authentik database)
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "CHANGEME_PG_PASSWORD"
+    password: "CHANGEME_PG_AUTHENTIK_PASSWORD"
+  primary:
+    persistence:
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+# ---------------------------------------------------------------------------
+# Redis (Authentik cache + message queue)
+# ---------------------------------------------------------------------------
+redis:
+  enabled: true
+  master:
+    persistence:
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+# ---------------------------------------------------------------------------
+# Server deployment (web UI + API)
+# ---------------------------------------------------------------------------
+server:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    hosts:
+      - host: auth.example.com  # CONFIGURE: Authentik admin UI domain
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts: [auth.example.com]
+        secretName: authentik-tls
+
+# ---------------------------------------------------------------------------
+# Worker deployment (background tasks)
+# ---------------------------------------------------------------------------
+worker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

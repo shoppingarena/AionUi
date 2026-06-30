@@ -1,0 +1,28 @@
+---
+# Middleware: Authentik forward-auth (FR-002)
+#
+# PREREQUISITE: Authentik must be deployed in namespace `authentik`.
+# Apply this AFTER Authentik server is running.
+#
+# Unauthenticated requests → 302 redirect to Authentik login.
+# Authenticated requests → forwarded with X-Authentik-* headers.
+#
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: authentik-forward-auth
+  namespace: aionui
+spec:
+  forwardAuth:
+    address: http://authentik-server.authentik.svc.cluster.local:9000/outpost.goauthentik.io/auth/traefik
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-authentik-username
+      - X-authentik-email
+      - X-authentik-groups
+      - X-authentik-jwt
+      - X-authentik-meta-jwks
+      - X-authentik-meta-out
+      - X-authentik-meta-provider
+      - X-authentik-meta-app
+      - X-authentik-meta-version

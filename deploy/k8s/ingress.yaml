@@ -1,0 +1,55 @@
+---
+# IngressRoute: Traefik CRD with TLS + security middleware
+#
+# CONFIGURE: Replace ai.example.com with your domain before applying.
+#
+# Routing strategy: Path-prefix (/ → default instance)
+# For multi-user: provision-user.sh creates route-{username} with PathPrefix(/{username})
+#
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: route-default
+  namespace: aionui
+  labels:
+    app: aionui
+    instance: default
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`ai.example.com`)
+      kind: Rule
+      middlewares:
+        - name: security-headers
+          namespace: aionui
+        # Authentik forward-auth — uncomment after Authentik is deployed
+        # - name: authentik-forward-auth
+        #   namespace: aionui
+      services:
+        - name: svc-default
+          namespace: aionui
+          port: 25808
+  tls:
+    certResolver: letsencrypt
+
+---
+# HTTP → HTTPS redirect IngressRoute (EntryPoint web → websecure)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: route-default-http
+  namespace: aionui
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`ai.example.com`)
+      kind: Rule
+      middlewares:
+        - name: tls-redirect
+          namespace: aionui
+      services:
+        - name: svc-default
+          namespace: aionui
+          port: 25808

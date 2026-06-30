@@ -1,0 +1,10 @@
+---
+# Namespace: AionUi application instances
+# Authentik runs in a separate namespace (authentik)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aionui
+  labels:
+    app.kubernetes.io/name: aionui
+    app.kubernetes.io/part-of: aionui-platform

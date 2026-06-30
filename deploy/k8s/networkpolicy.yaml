@@ -1,0 +1,33 @@
+---
+# NetworkPolicy: Per-user pod isolation (FR-004)
+#
+# DENY all ingress between AionUi pods.
+# ALLOW ingress only from Traefik (kube-system namespace) on port 25808.
+#
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aionui-isolation
+  namespace: aionui
+spec:
+  podSelector:
+    matchLabels:
+      app: aionui
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow Traefik (Ingress controller in kube-system) to reach AionUi
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 25808
+          protocol: TCP
+    # ALLOW same-namespace traffic (K3s metadata router, debugging)
+    # Remove this rule for strict isolation — instances won't reach each other
+    # - from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: aionui
+    # DENY user-to-user traffic by default (no rule = deny)

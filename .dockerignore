@@ -1,7 +1,61 @@
+# =============================================================================
+# Docker build context exclusions
+# Docker looks for this file at the build context root (repo root).
+# =============================================================================
+
+# Dependencies (reinstalled fresh inside the builder stage)
 node_modules
+
+# Build outputs (rebuilt inside the builder stage)
 out
+dist
 dist-server
+release
+
+# Pre-built aioncore binaries (downloaded inside the builder stage)
+resources/bundled-aioncore
+
+# Version control
 .git
 .github
+.gitignore
+.gitattributes
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Runtime data
 data
 *.log
+*.db
+*.sqlite
+
+# Specs and planning docs (not needed in container image)
+specs
+.specify
+
+# Test files
+tests
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.spec.ts
+**/*.spec.tsx
+**/*.bun.test.ts
+coverage
+.vitest-cache
+
+# CI / build tooling
+.husky
+.DS_Store
+Thumbs.db
+
+# Docker itself (avoid recursive context)
+Dockerfile
+docker
+
+# Deployment manifests (not needed inside the container)
+deploy

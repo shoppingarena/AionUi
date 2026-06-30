@@ -1,0 +1,87 @@
+---
+# Deployment: AionUi base template (single-user instance)
+#
+# For multi-user: provision-user.sh clones this manifest with name overrides.
+# The default instance is `aionui-default` — provision-user.sh creates
+# `aionui-{username}` variants.
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aionui-default
+  namespace: aionui
+  labels:
+    app: aionui
+    instance: default
+spec:
+  replicas: 1
+  # Recreate strategy — PVC is ReadWriteOnce, can't run 2 pods simultaneously
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: aionui
+      instance: default
+  template:
+    metadata:
+      labels:
+        app: aionui
+        instance: default
+    spec:
+      containers:
+        - name: aionui
+          image: aionui:v2.1.23
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 25808
+              name: http
+              protocol: TCP
+          # Shared non-secret config from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: aionui-config
+          # PVC mount — SQLite database, conversations, workspaces, logs
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          # Resource limits — per-user budget
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          # Probes — aioncore exposes /api/auth/status (200 = ready)
+          readinessProbe:
+            httpGet:
+              path: /api/auth/status
+              port: 25808
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/auth/status
+              port: 25808
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/auth/status
+              port: 25808
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            failureThreshold: 12  # 60s max startup
+          # Graceful shutdown — signal aioncore to flush SQLite WAL
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "kill -TERM 1"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pvc-default
+      # Grace period for SQLite WAL flush on shutdown
+      terminationGracePeriodSeconds: 30
