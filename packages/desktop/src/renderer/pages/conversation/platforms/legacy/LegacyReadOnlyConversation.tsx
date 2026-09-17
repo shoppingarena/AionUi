@@ -6,6 +6,7 @@
 
 import type { TChatConversation } from '@/common/config/storage';
 import { ConversationProvider } from '@/renderer/hooks/context/ConversationContext';
+import { useResolvedConversationSkills } from '@/renderer/hooks/conversation/useResolvedConversationSkills';
 import FlexFullContainer from '@renderer/components/layout/FlexFullContainer';
 import MessageList from '@renderer/pages/conversation/Messages/MessageList';
 import { ConversationArtifactProvider } from '@renderer/pages/conversation/Messages/artifacts';
@@ -23,6 +24,7 @@ const LegacyReadOnlyConversation: React.FC<{
   emptySlot?: React.ReactNode;
 }> = ({ conversation, emptySlot }) => {
   useMessageLstCache(conversation.id);
+  const { skills: resolvedSkills } = useResolvedConversationSkills(conversation);
 
   return (
     <ConversationProvider
@@ -32,7 +34,7 @@ const LegacyReadOnlyConversation: React.FC<{
         type: 'acp',
         hideSendBox: true,
         cron_job_id: conversation.extra?.cron_job_id as string | undefined,
-        loadedSkills: (conversation.extra as { skills?: string[] } | undefined)?.skills,
+        loadedSkills: resolvedSkills,
       }}
     >
       <ConversationArtifactProvider conversation_id={conversation.id}>

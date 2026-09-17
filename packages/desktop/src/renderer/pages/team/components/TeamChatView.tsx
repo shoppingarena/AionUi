@@ -18,6 +18,7 @@ import type { TeamRunReconcileResult, TeamRunViewState } from '../hooks/useTeamR
 import TeamChatEmptyState from './TeamChatEmptyState';
 import { useTeamTabs } from '@/renderer/pages/team/hooks/TeamTabsContext';
 import { usePresetAssistantInfo } from '@/renderer/hooks/agent/usePresetAssistantInfo';
+import { useResolvedConversationSkills } from '@/renderer/hooks/conversation/useResolvedConversationSkills';
 import { resolveConversationBackend } from '@/renderer/pages/conversation/utils/conversationAssistantIdentity';
 
 const AcpChat = React.lazy(() => import('@/renderer/pages/conversation/platforms/acp/AcpChat'));
@@ -138,6 +139,7 @@ const TeamChatView: React.FC<TeamChatViewProps> = ({
   const { t } = useTranslation();
   const { activeSlotId, switchTab } = useTeamTabs();
   const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
+  const { skills: resolvedTeamSkills } = useResolvedConversationSkills(conversation);
   const capabilitySnapshot = conversation.extra as TeamConversationCapabilitySnapshot | undefined;
   // Single source of truth for the team greeting. Each *Chat simply forwards
   // `emptySlot` to MessageList. The empty state can derive preset assistant
@@ -268,7 +270,7 @@ const TeamChatView: React.FC<TeamChatViewProps> = ({
             emptySlot={emptySlot}
             teamSendMessage={teamSendMessageOverride}
             teamRuntime={teamRuntime}
-            loadedSkills={capabilitySnapshot?.skills}
+            loadedSkills={resolvedTeamSkills}
             loadedMcpServers={capabilitySnapshot?.mcp_servers}
             loadedMcpStatuses={capabilitySnapshot?.mcp_statuses}
           />
@@ -282,7 +284,7 @@ const TeamChatView: React.FC<TeamChatViewProps> = ({
             assistant_name={resolvedAssistantName}
             teamSendMessage={teamSendMessageOverride}
             teamRuntime={teamRuntime}
-            loadedSkills={capabilitySnapshot?.skills}
+            loadedSkills={resolvedTeamSkills}
             loadedMcpServers={capabilitySnapshot?.mcp_servers}
             loadedMcpStatuses={capabilitySnapshot?.mcp_statuses}
           />

@@ -13,6 +13,7 @@ import { resolveCronJobId } from '@/renderer/pages/cron/cronUtils';
 import { classifyConfigSetError, useAcpConfigOptions } from '@/renderer/hooks/agent/useAcpConfigOptions';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { usePresetAssistantInfo } from '@/renderer/hooks/agent/usePresetAssistantInfo';
+import { useResolvedConversationSkills } from '@/renderer/hooks/conversation/useResolvedConversationSkills';
 import { iconColors } from '@/renderer/styles/colors';
 import { Button, Dropdown, Menu, Message, Tooltip, Typography } from '@arco-design/web-react';
 import { History } from '@icon-park/react';
@@ -179,6 +180,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
   const cronJobId = resolveCronJobId(conversation.extra);
   const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
   const aionrsAssistantId = presetAssistantInfo?.assistantId;
+  const { skills: resolvedSkills } = useResolvedConversationSkills(conversation);
   const layout = useLayoutContext();
   // Mobile: model selection moved into the sendbox `+` action sheet to free up
   // header space; the dropdown stays available on desktop and tablets ≥768px.
@@ -252,7 +254,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
         modelSelection={modelSelection}
         session_mode={conversation.extra?.session_mode}
         cron_job_id={cronJobId}
-        loadedSkills={(conversation.extra as { skills?: string[] } | undefined)?.skills}
+        loadedSkills={resolvedSkills}
         loadedMcpServers={(conversation.extra as { mcp_servers?: string[] } | undefined)?.mcp_servers}
         loadedMcpStatuses={
           (conversation.extra as { mcp_statuses?: IConversationMcpStatus[] } | undefined)?.mcp_statuses
@@ -292,6 +294,7 @@ const ChatConversation: React.FC<{
   const acpConversation = isAionrsConversation ? undefined : conversation;
   const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(acpConversation);
   const acpAssistantId = presetAssistantInfo?.assistantId;
+  const { skills: acpResolvedSkills } = useResolvedConversationSkills(isAionrsConversation ? undefined : conversation);
   const resolvedConversationBackend = resolveConversationBackend(conversation, presetAssistantInfo?.backend);
 
   const conversationAgentName = (conversation?.extra as { agent_name?: string } | undefined)?.agent_name;
@@ -330,7 +333,7 @@ const ChatConversation: React.FC<{
             cron_job_id={cronJobId}
             hideSendBox={resolvedHideSendBox}
             emptySlot={emptySlot}
-            loadedSkills={(conversation.extra as { skills?: string[] } | undefined)?.skills}
+            loadedSkills={acpResolvedSkills}
             loadedMcpServers={(conversation.extra as { mcp_servers?: string[] } | undefined)?.mcp_servers}
             loadedMcpStatuses={
               (conversation.extra as { mcp_statuses?: IConversationMcpStatus[] } | undefined)?.mcp_statuses
@@ -352,6 +355,7 @@ const ChatConversation: React.FC<{
     cronJobId,
     resolvedHideSendBox,
     acpAssistantId,
+    acpResolvedSkills,
   ]);
 
   const sliderTitle = useMemo(() => {
