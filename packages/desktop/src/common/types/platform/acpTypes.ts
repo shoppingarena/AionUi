@@ -144,7 +144,8 @@ export interface ToolCallUpdate extends BaseSessionUpdate {
   update: {
     sessionUpdate: 'tool_call' | 'tool_call_update';
     tool_call_id: string;
-    status: 'pending' | 'in_progress' | 'completed' | 'failed';
+    /** 'canceled' is a renderer-side terminal status for tool calls orphaned by an interrupted turn. */
+    status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'canceled';
     title: string;
     kind: 'read' | 'edit' | 'execute';
     rawInput?: Record<string, unknown>;

@@ -1,4 +1,4 @@
-import type { IMessageAcpToolCall, IMessageToolCall, IMessageToolGroup } from './chatLib';
+import type { IMessageAcpToolCall, IMessageToolCall, IMessageToolGroup, TMessage } from './chatLib';
 import { getAcpImagePath } from './acpToolCallOutput';
 
 export type NormalizedToolStatus = 'pending' | 'running' | 'completed' | 'error' | 'canceled';
@@ -93,6 +93,8 @@ function normalizeAcpStatus(status: string): NormalizedToolStatus {
       return 'error';
     case 'in_progress':
       return 'running';
+    case 'canceled':
+      return 'canceled';
     case 'pending':
     default:
       return 'pending';
@@ -246,5 +248,58 @@ export function hasRunningToolMessages(messages: ToolMessage[]): boolean {
       return normalizeToolCallStatus(m.content?.status) === 'running';
     }
     return false;
+  });
+}
+
+// ===== Orphaned tool record guard (liveness-driven, timeout-free) =====
+
+/**
+ * Terminal statuses per tool message shape. Anything else ("Executing",
+ * "Confirming", "Pending", "running", "pending", missing) means the tool was
+ * still in flight when its turn ended — it can never complete on its own.
+ */
+const TOOL_GROUP_TERMINAL_STATUSES = new Set(['Success', 'Error', 'Canceled']);
+const ACP_TOOL_CALL_TERMINAL_STATUSES = new Set(['completed', 'failed', 'canceled']);
+const TOOL_CALL_TERMINAL_STATUSES = new Set(['completed', 'error', 'canceled']);
+
+/**
+ * Finalize tool records left in a non-terminal state by an interrupted turn
+ * (stopped, cancelled, or crashed mid-tool). Display-only reconciliation:
+ * returns a new list where such records render as canceled instead of
+ * spinner-forever, which previously made the conversation look permanently
+ * busy with a dead stop button.
+ *
+ * Liveness-driven by design — `isTurnActive` MUST come from backend runtime
+ * state (e.g. `runtime.is_processing` after hydration), never from elapsed
+ * time. A legitimately slow tool call (docker pull, long search) runs with
+ * `isTurnActive === true` and is returned untouched, however long it takes.
+ * Copy-on-write: messages without in-flight tools keep referential identity.
+ */
+export function finalizeOrphanedToolMessages(messages: TMessage[], isTurnActive: boolean): TMessage[] {
+  if (isTurnActive) return messages;
+  return messages.map((message) => {
+    if (message.type === 'tool_group' && Array.isArray(message.content)) {
+      let changed = false;
+      const content = message.content.map((item) => {
+        if (TOOL_GROUP_TERMINAL_STATUSES.has(item.status)) return item;
+        changed = true;
+        return { ...item, status: 'Canceled' as const };
+      });
+      return changed ? ({ ...message, content } as IMessageToolGroup) : message;
+    }
+    if (message.type === 'acp_tool_call' && message.content?.update) {
+      const status = message.content.update.status;
+      if (ACP_TOOL_CALL_TERMINAL_STATUSES.has(status)) return message;
+      return {
+        ...message,
+        content: { ...message.content, update: { ...message.content.update, status: 'canceled' } },
+      } as IMessageAcpToolCall;
+    }
+    if (message.type === 'tool_call' && message.content) {
+      const status = message.content.status;
+      if (status && TOOL_CALL_TERMINAL_STATUSES.has(status)) return message;
+      return { ...message, content: { ...message.content, status: 'canceled' } } as IMessageToolCall;
+    }
+    return message;
   });
 }

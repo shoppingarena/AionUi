@@ -6,6 +6,7 @@
 
 import type { IConversationArtifact } from '@/common/adapter/ipcBridge';
 import type { IMessageAcpToolCall, IMessageToolCall, IMessageToolGroup, TMessage } from '@/common/chat/chatLib';
+import { finalizeOrphanedToolMessages } from '@/common/chat/normalizeToolCall';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { useConversationRuntimeView } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
 import { getChatSurfaceWidthClass } from '@/renderer/pages/conversation/utils/chatSurfaceWidth';
@@ -343,7 +344,18 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
   // While the agent is still streaming, the in-progress turn's last text keeps
   // moving down, so we defer its copy/timestamp row until the turn finishes to
   // avoid the row flashing in and the layout reflowing mid-stream.
-  const { isProcessing } = useConversationRuntimeView(conversationContext?.conversation_id ?? '');
+  const { isProcessing, hydrated: runtimeHydrated } = useConversationRuntimeView(
+    conversationContext?.conversation_id ?? ''
+  );
+  // Liveness-driven orphan guard: tool records left non-terminal by an
+  // interrupted turn (stop/cancel/crash mid-tool) render as canceled instead of
+  // spinner-forever. Applied only after runtime hydration confirmed the
+  // conversation is idle — a legitimately slow tool call (docker pull, long
+  // search) keeps its live status while the turn is actually processing.
+  const displayList = useMemo(
+    () => finalizeOrphanedToolMessages(list, !runtimeHydrated || isProcessing),
+    [list, runtimeHydrated, isProcessing]
+  );
   const { t } = useTranslation();
   const location = useLocation();
   const locationState = (location.state || {}) as ConversationLocationState;
@@ -402,8 +414,8 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
       result.push(message);
     };
 
-    for (let i = 0, len = list.length; i < len; i++) {
-      const message = list[i];
+    for (let i = 0, len = displayList.length; i < len; i++) {
+      const message = displayList[i];
       // Skip hidden and available_commands messages
       if (message.hidden) continue;
       if (message.type === 'available_commands') continue;
@@ -457,7 +469,7 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
     return [...result, ...visibleArtifacts].toSorted(
       (a, b) => getProcessedItemCreatedAt(a) - getProcessedItemCreatedAt(b)
     );
-  }, [artifacts, list]);
+  }, [artifacts, displayList]);
 
   // An AI reply can be split into several messages (thinking / multiple text /
   // tool blocks). The hover copy + timestamp row should appear once per turn,
