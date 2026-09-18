@@ -37,11 +37,13 @@ export interface PresetAssistantInfo {
  * Legacy `custom_agent_id` is excluded here because older ACP rows used it as
  * a runtime row id, not an assistant id.
  */
-export function resolveAssistantConfigId(conversation: TChatConversation): string | null {
-  const extra = conversation.extra as {
-    assistant_id?: unknown;
-    preset_assistant_id?: unknown;
-  };
+export function resolveAssistantConfigId(conversation: TChatConversation | null | undefined): string | null {
+  const extra = conversation?.extra as
+    | {
+        assistant_id?: unknown;
+        preset_assistant_id?: unknown;
+      }
+    | undefined;
   const assistant_id = typeof extra?.assistant_id === 'string' ? extra.assistant_id.trim() : '';
   const preset_assistant_id = typeof extra?.preset_assistant_id === 'string' ? extra.preset_assistant_id.trim() : '';
   return assistant_id || preset_assistant_id || null;

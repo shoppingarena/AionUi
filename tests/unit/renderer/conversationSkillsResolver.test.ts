@@ -4,6 +4,7 @@ import {
   isStaleConversationSkillSnapshot,
   resolveAssistantEffectiveSkills,
 } from '@/renderer/hooks/conversation/useResolvedConversationSkills';
+import { resolveAssistantConfigId } from '@/renderer/hooks/agent/usePresetAssistantInfo';
 
 describe('isStaleConversationSkillSnapshot', () => {
   it('flags legacy snapshots that still carry the removed aionui-skills pseudo-skill', () => {
@@ -54,5 +55,19 @@ describe('resolveAssistantEffectiveSkills', () => {
   });
   it('exports the legacy marker constant', () => {
     expect(LEGACY_SKILL_SNAPSHOT_MARKER).toBe('aionui-skills');
+  });
+});
+
+describe('resolveAssistantConfigId null-safety', () => {
+  it('returns null for undefined/null conversations instead of crashing on extra (#black-page)', () => {
+    expect(resolveAssistantConfigId(undefined)).toBeNull();
+    expect(resolveAssistantConfigId(null)).toBeNull();
+  });
+  it('reads assistant ids from a real conversation', () => {
+    expect(
+      resolveAssistantConfigId({ extra: { assistant_id: 'custom-1', preset_assistant_id: 'builtin-2' } } as never)
+    ).toBe('custom-1');
+    expect(resolveAssistantConfigId({ extra: { preset_assistant_id: 'builtin-2' } } as never)).toBe('builtin-2');
+    expect(resolveAssistantConfigId({ extra: {} } as never)).toBeNull();
   });
 });
