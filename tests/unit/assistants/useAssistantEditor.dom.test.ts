@@ -53,7 +53,7 @@ vi.mock('@/renderer/hooks/mcp/catalog', () => ({
   })),
 }));
 
-import { useAssistantEditor } from '@/renderer/hooks/assistant/useAssistantEditor';
+import { NEW_ASSISTANT_DEFAULT_MODEL, useAssistantEditor } from '@/renderer/hooks/assistant/useAssistantEditor';
 import { ipcBridge } from '@/common';
 import type { AssistantListItem } from '@/renderer/pages/settings/AssistantSettings/types';
 import { mutate as swrMutate } from 'swr';
@@ -320,7 +320,9 @@ describe('useAssistantEditor', () => {
     expect(result.current.editVisible).toBe(true);
     expect(result.current.editName).toBe('');
     expect(result.current.editDescription).toBe('');
-    expect(result.current.defaultModelMode).toBe('auto');
+    // New assistants default to a fixed GLM 5.3 Flash model (owner request).
+    expect(result.current.defaultModelMode).toBe('fixed');
+    expect(result.current.defaultModelValue).toBe(NEW_ASSISTANT_DEFAULT_MODEL);
     expect(result.current.defaultPermissionMode).toBe('auto');
     expect((result.current as any).defaultThoughtLevelMode).toBe('auto');
     expect(result.current.defaultMcpMode).toBe('auto');

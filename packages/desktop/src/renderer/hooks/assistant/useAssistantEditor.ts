@@ -34,6 +34,13 @@ type AssistantMcpDefaultMode = 'auto' | 'fixed';
 const isBuiltinAssistant = (assistant: Assistant | null | undefined): boolean => assistant?.source === 'builtin';
 const isGeneratedAssistant = (assistant: Assistant | null | undefined): boolean => assistant?.source === 'generated';
 
+/**
+ * Model preselected for every NEW assistant (fixed default). Requested by the
+ * owner so new assistants use GLM 5.3 Flash out of the box; users can still
+ * change it per assistant in the editor. Existing assistants are untouched.
+ */
+export const NEW_ASSISTANT_DEFAULT_MODEL = 'glm-5.3-flash';
+
 const resolveLocalizedRecommendedPrompts = (
   detail: Awaited<ReturnType<typeof ipcBridge.assistants.get.invoke>>,
   localeKey: string
@@ -219,9 +226,15 @@ export const useAssistantEditor = ({
       }
 
       resetModelAndPermissionDefaults();
+      // Template switches during creation must keep the new-assistant model
+      // default; editing keeps whatever the assistant's saved defaults are.
+      if (isCreating) {
+        setDefaultModelMode('fixed');
+        setDefaultModelValue(NEW_ASSISTANT_DEFAULT_MODEL);
+      }
       setEditAgentState(nextAgent);
     },
-    [editAgent, resetModelAndPermissionDefaults]
+    [editAgent, isCreating, resetModelAndPermissionDefaults]
   );
 
   const handleEdit = async (assistant: AssistantListItem) => {
@@ -293,6 +306,10 @@ export const useAssistantEditor = ({
     setEditAvatarPreview(undefined);
     setEditAgent('');
     resetDefaultConfigState();
+    // New assistants default to a fixed GLM 5.3 Flash model (owner request);
+    // the user can change it in the editor before saving.
+    setDefaultModelMode('fixed');
+    setDefaultModelValue(NEW_ASSISTANT_DEFAULT_MODEL);
     resetSkillEditorState();
 
     try {
