@@ -9,7 +9,7 @@
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { mkdirSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync } from 'node:fs';
 import { connect, createServer, type Socket } from 'node:net';
 import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
 import type { AppMetadata, BackendBinaryResolver } from './types.js';
@@ -1081,7 +1081,23 @@ export async function startBackend(opts: BackendLaunchOptions): Promise<BackendH
   if (!dataDir) {
     throw new Error('startBackend: dataDir is required');
   }
-  const port = await manager.start(dataDir, opts.logDir, opts.dirs);
+  // Stable port pin: AIONUI_BACKEND_PORT env, or a `<dataDir>/backend-port` file.
+  // The file makes the pin launcher-agnostic (npm/bun/watchdog/boot tasks all
+  // get the same port without sharing environment setup).
+  let preferredPort = opts.preferredPort;
+  if (!preferredPort && process.env.AIONUI_BACKEND_PORT) {
+    const fromEnv = Number(process.env.AIONUI_BACKEND_PORT);
+    if (Number.isFinite(fromEnv) && fromEnv > 0) preferredPort = fromEnv;
+  }
+  if (!preferredPort) {
+    try {
+      const fromFile = Number(readFileSync(`${dataDir}/backend-port`, 'utf8').trim());
+      if (Number.isFinite(fromFile) && fromFile > 0) preferredPort = fromFile;
+    } catch {
+      // no pin file — keep dynamic port behavior
+    }
+  }
+  const port = await manager.start(dataDir, opts.logDir, opts.dirs, undefined, preferredPort);
   return {
     port,
     stop: () => manager.stop(),

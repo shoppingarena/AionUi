@@ -72,6 +72,14 @@ const HOUR_INTERVALS = [1, 2, 3, 4, 6, 8, 12];
 const MONTH_DAYS = Array.from({ length: 31 }, (_, index) => index + 1);
 const DEFAULT_CUSTOM_WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 
+/**
+ * Model preselected for every NEW scheduled task (fixed default). Mirrors the
+ * new-assistant default: new cron jobs run on GLM 5.3 Flash out of the box
+ * whenever the model is offered by the assistant/provider; users can still
+ * change it in the editor. Existing jobs keep their stored model.
+ */
+export const SCHEDULED_TASK_DEFAULT_MODEL = 'glm-5.3-flash';
+
 function createDefaultCustomSchedule(): CustomScheduleState {
   return {
     mode: 'interval',
@@ -427,11 +435,19 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
     return buildAssistantModelInfo(selectedAssistantModels);
   }, [resolvedBackend, selectedAssistantModels]);
 
-  // Auto-pick the first available model from /api/providers when aionrs is
-  // selected but none is set yet. Source of truth is the backend provider
-  // list — do NOT read from any frontend-cached default.
+  // Auto-pick a model from /api/providers when aionrs is selected but none is
+  // set yet. Prefer the scheduled-task default model (GLM 5.3 Flash) when any
+  // provider offers it; otherwise fall back to the first available model.
+  // Source of truth is the backend provider list — do NOT read from any
+  // frontend-cached default.
   useEffect(() => {
     if (resolvedBackend !== 'aionrs' || model_id) return;
+    for (const provider of aionrsProviders) {
+      if (getAvailableModels(provider).includes(SCHEDULED_TASK_DEFAULT_MODEL)) {
+        setModelId(SCHEDULED_TASK_DEFAULT_MODEL);
+        return;
+      }
+    }
     for (const provider of aionrsProviders) {
       const models = getAvailableModels(provider);
       if (models.length > 0) {
@@ -440,6 +456,17 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       }
     }
   }, [resolvedBackend, model_id, aionrsProviders, getAvailableModels]);
+
+  // New tasks on ACP assistants also default to GLM 5.3 Flash, but only when
+  // the assistant actually exposes that model; otherwise the assistant's own
+  // default applies (model_id stays unset). Gemini/aionrs backends pick their
+  // model through the provider-based selector above. Edit mode keeps the
+  // job's stored model.
+  useEffect(() => {
+    if (isEditMode || isGeminiMode || model_id) return;
+    if (!selectedAssistantModels.includes(SCHEDULED_TASK_DEFAULT_MODEL)) return;
+    setModelId(SCHEDULED_TASK_DEFAULT_MODEL);
+  }, [isEditMode, isGeminiMode, model_id, selectedAssistantModels]);
 
   const showTimePicker = frequency === 'daily' || frequency === 'weekdays' || frequency === 'weekly';
   const showWeekdayPicker = frequency === 'weekly';

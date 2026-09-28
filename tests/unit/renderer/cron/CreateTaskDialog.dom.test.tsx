@@ -13,6 +13,7 @@ import type { ICronJob } from '@/common/adapter/ipcBridge';
 import type { TChatConversation } from '@/common/config/storage';
 
 let currentAssistants: Assistant[] = [];
+let currentProviders: Array<{ id: string; name: string; models: string[] }> = [];
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -66,8 +67,8 @@ vi.mock('@renderer/pages/conversation/hooks/useConversationAssistants', () => ({
 
 vi.mock('@renderer/hooks/agent/useModelProviderList', () => ({
   useModelProviderList: () => ({
-    providers: [],
-    getAvailableModels: () => [],
+    providers: currentProviders,
+    getAvailableModels: (provider: { models: string[] }) => provider.models,
     formatModelLabel: (label: string) => label,
   }),
 }));
@@ -118,7 +119,9 @@ vi.mock('@renderer/pages/cron/ScheduledTasksPage/resolveCronAgentConfig', () => 
 }));
 
 import { ipcBridge } from '@/common';
-import CreateTaskDialog from '@/renderer/pages/cron/ScheduledTasksPage/CreateTaskDialog';
+import CreateTaskDialog, {
+  SCHEDULED_TASK_DEFAULT_MODEL,
+} from '@/renderer/pages/cron/ScheduledTasksPage/CreateTaskDialog';
 import { resolveCronAgentConfig } from '@/renderer/pages/cron/ScheduledTasksPage/resolveCronAgentConfig';
 
 describe('CreateTaskDialog', () => {
@@ -141,6 +144,7 @@ describe('CreateTaskDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentAssistants = assistants();
+    currentProviders = [];
     vi.mocked(ipcBridge.cron.addJob.invoke).mockResolvedValue(job());
     vi.mocked(ipcBridge.cron.updateJob.invoke).mockResolvedValue(job());
     vi.mocked(ipcBridge.cron.createJob.invoke).mockResolvedValue(job());
@@ -376,6 +380,99 @@ describe('CreateTaskDialog', () => {
     });
     await waitFor(() => expect(ipcBridge.cron.addJob.invoke).toHaveBeenCalledTimes(1));
   });
+
+  it('defaults new aionrs tasks to the scheduled-task default model when available', async () => {
+    const user = userEvent.setup();
+    currentAssistants = [aionrsAssistant()];
+    currentProviders = [
+      { id: 'provider-1', name: 'Provider One', models: ['other-model', SCHEDULED_TASK_DEFAULT_MODEL] },
+    ];
+
+    render(<CreateTaskDialog visible onClose={() => {}} />);
+
+    await user.type(await screen.findByPlaceholderText('cron.page.form.namePlaceholder'), 'aionrs task');
+    await user.type(screen.getByPlaceholderText('cron.page.form.promptPlaceholder'), 'Say hello');
+
+    await user.click(screen.getByTestId('cron-assistant-select'));
+    const assistantOption = await waitFor(() => {
+      const option = document.querySelector('.arco-select-option');
+      if (!option) throw new Error('assistant option not found');
+      return option;
+    });
+    fireEvent.click(assistantOption);
+    await user.click(screen.getByTestId('modal-ok'));
+
+    await waitFor(() => expect(resolveCronAgentConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(resolveCronAgentConfig).mock.calls[0][0]).toMatchObject({
+      agentValue: 'aionrs-assistant-1',
+      model_id: SCHEDULED_TASK_DEFAULT_MODEL,
+      selectedAionrsProvider: { id: 'provider-1' },
+    });
+  });
+
+  it('falls back to the first available aionrs model when the default model is unavailable', async () => {
+    const user = userEvent.setup();
+    currentAssistants = [aionrsAssistant()];
+    currentProviders = [{ id: 'provider-1', name: 'Provider One', models: ['other-model'] }];
+
+    render(<CreateTaskDialog visible onClose={() => {}} />);
+
+    await user.type(await screen.findByPlaceholderText('cron.page.form.namePlaceholder'), 'aionrs task');
+    await user.type(screen.getByPlaceholderText('cron.page.form.promptPlaceholder'), 'Say hello');
+
+    await user.click(screen.getByTestId('cron-assistant-select'));
+    const assistantOption = await waitFor(() => {
+      const option = document.querySelector('.arco-select-option');
+      if (!option) throw new Error('assistant option not found');
+      return option;
+    });
+    fireEvent.click(assistantOption);
+    await user.click(screen.getByTestId('modal-ok'));
+
+    await waitFor(() => expect(resolveCronAgentConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(resolveCronAgentConfig).mock.calls[0][0]).toMatchObject({
+      agentValue: 'aionrs-assistant-1',
+      model_id: 'other-model',
+    });
+  });
+
+  it('defaults new ACP tasks to the scheduled-task default model when the assistant exposes it', async () => {
+    const user = userEvent.setup();
+    currentAssistants = [acpAssistantWithModels(['some-model', SCHEDULED_TASK_DEFAULT_MODEL])];
+
+    render(<CreateTaskDialog visible onClose={() => {}} />);
+
+    await user.type(await screen.findByPlaceholderText('cron.page.form.namePlaceholder'), 'acp task');
+    await user.type(screen.getByPlaceholderText('cron.page.form.promptPlaceholder'), 'Say hello');
+
+    await user.click(screen.getByTestId('cron-assistant-select'));
+    const assistantOption = await waitFor(() => {
+      const option = document.querySelector('.arco-select-option');
+      if (!option) throw new Error('assistant option not found');
+      return option;
+    });
+    fireEvent.click(assistantOption);
+    await user.click(screen.getByTestId('modal-ok'));
+
+    await waitFor(() => expect(resolveCronAgentConfig).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(resolveCronAgentConfig).mock.calls[0][0]).toMatchObject({
+      agentValue: 'assistant-1',
+      model_id: SCHEDULED_TASK_DEFAULT_MODEL,
+    });
+  });
+
+  it('keeps the stored model when editing a task', async () => {
+    const user = userEvent.setup();
+
+    render(<CreateTaskDialog visible editJob={jobWithStoredModel()} onClose={() => {}} />);
+
+    await user.click(screen.getByTestId('modal-ok'));
+
+    await waitFor(() => expect(ipcBridge.cron.updateJob.invoke).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(resolveCronAgentConfig).mock.calls[0][0]).toMatchObject({
+      model_id: 'stored-model',
+    });
+  });
 });
 
 function job(): ICronJob {
@@ -503,4 +600,31 @@ function bareAssistant(): Assistant {
     prompts_i18n: {},
     models: [],
   } as Assistant;
+}
+
+function acpAssistantWithModels(models: string[]): Assistant {
+  return { ...assistants()[0], models } as Assistant;
+}
+
+function aionrsAssistant(): Assistant {
+  return {
+    ...assistants()[0],
+    id: 'aionrs-assistant-1',
+    name: 'Aionrs 助手',
+    agent_id: 'agent-aionrs',
+    agent: { type: 'aionrs', source: 'internal' },
+  } as Assistant;
+}
+
+function jobWithStoredModel(): ICronJob {
+  return {
+    ...job(),
+    metadata: {
+      ...job().metadata,
+      agent_config: {
+        ...job().metadata.agent_config,
+        model_id: 'stored-model',
+      },
+    },
+  } as ICronJob;
 }
